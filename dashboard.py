@@ -529,29 +529,37 @@ try:
                     elif not validar_correo(new_email):
                         st.error("El formato del correo electrónico es inválido.")
                     else:
-                        existe = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
-                        if existe:
+                        existe_rut = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
+                        existe_correo = db.query(UsuarioWeb).filter(UsuarioWeb.email == new_email).first()
+                        
+                        if existe_rut:
                             st.error("Ya existe una cuenta con este nombre de usuario o RUT.")
+                        elif existe_correo:
+                            st.error("Este correo electrónico ya está registrado en otra cuenta.")
                         else:
-                            temp_pwd = str(random.randint(10000, 99999))
-                            nuevo_usuario = UsuarioWeb(
-                                username=new_rut, 
-                                email=new_email,
-                                password=temp_pwd, 
-                                rol=new_rol,
-                                must_change_password=True,
-                                account_expires_at=datetime.utcnow() + timedelta(hours=24)
-                            )
-                            db.add(nuevo_usuario)
-                            db.commit()
-                            st.success(f"Cuenta de {new_rol} para '{new_rut}' creada exitosamente.")
-                            
-                            asunto = "Acceso Creado - NeuroForge"
-                            cuerpo = f"Hola,\n\nEl Administrador ha creado tu cuenta de {new_rol}.\nUsuario: {new_rut}\nClave temporal: {temp_pwd}\n\nIngresa al portal para cambiar tu clave.\n\nSaludos."
-                            if enviar_correo_real(new_email, asunto, cuerpo):
-                                st.info(f"📧 Correo con clave inicial enviado a {new_email}")
-                            else:
-                                st.warning(f"⚠️ Cuenta creada, pero falta configurar el servidor SMTP. Entrégale esta clave al usuario: {temp_pwd}")
+                            try:
+                                temp_pwd = str(random.randint(10000, 99999))
+                                nuevo_usuario = UsuarioWeb(
+                                    username=new_rut, 
+                                    email=new_email,
+                                    password=temp_pwd, 
+                                    rol=new_rol,
+                                    must_change_password=True,
+                                    account_expires_at=datetime.utcnow() + timedelta(hours=24)
+                                )
+                                db.add(nuevo_usuario)
+                                db.commit()
+                                st.success(f"Cuenta de {new_rol} para '{new_rut}' creada exitosamente.")
+                                
+                                asunto = "Acceso Creado - NeuroForge"
+                                cuerpo = f"Hola,\n\nEl Administrador ha creado tu cuenta de {new_rol}.\nUsuario: {new_rut}\nClave temporal: {temp_pwd}\n\nIngresa al portal para cambiar tu clave.\n\nSaludos."
+                                if enviar_correo_real(new_email, asunto, cuerpo):
+                                    st.info(f"📧 Correo con clave inicial enviado a {new_email}")
+                                else:
+                                    st.warning(f"⚠️ Cuenta creada, pero falta configurar el servidor SMTP. Entrégale esta clave al usuario: {temp_pwd}")
+                            except Exception as e:
+                                db.rollback()
+                                st.error("Ocurrió un error en la base de datos al crear la cuenta. Por favor, intenta nuevamente.")
         
         with tab_lista:
             st.subheader("Analítica y Control de Usuarios")
