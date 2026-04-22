@@ -11,6 +11,10 @@ from ai_engine import NeuroForgeAI
 import random
 from datetime import datetime, timedelta
 import re
+import smtplib
+import ssl
+from email.message import EmailMessage
+import os
 
 def validar_rut(rut):
     """Valida formato de RUT chileno simple: 12345678-9 (sin puntos, con guion)"""
@@ -19,6 +23,38 @@ def validar_rut(rut):
 def validar_correo(correo):
     """Valida formato de correo electrónico estándar"""
     return re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', str(correo)) is not None
+
+def enviar_correo_real(destinatario, asunto, mensaje_texto):
+    """Envía un correo electrónico usando un servidor SMTP (ej. Gmail)."""
+    smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", 465))
+    smtp_user = os.getenv("SMTP_USER", "")
+    smtp_password = os.getenv("SMTP_PASSWORD", "")
+
+    if not smtp_user or not smtp_password:
+        return False # No hay credenciales configuradas
+
+    msg = EmailMessage()
+    msg.set_content(mensaje_texto)
+    msg['Subject'] = asunto
+    msg['From'] = smtp_user
+    msg['To'] = destinatario
+
+    try:
+        if smtp_port == 465:
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Error SMTP: {e}")
+        return False
 
 # Configuración de la interfaz
 st.set_page_config(page_title="NeuroForge: Coordinación PIE", layout="wide")
@@ -172,7 +208,13 @@ try:
                                 db.add(nuevo_profe)
                                 db.commit()
                                 st.success("¡Cuenta creada exitosamente!")
-                                st.info(f"📧 *(Simulación)* Correo enviado a {new_email} con clave temporal: {temp_pwd}")
+                                
+                                asunto = "Bienvenido a NeuroForge - Tu Clave Temporal"
+                                cuerpo = f"Hola,\n\nTu cuenta ha sido creada exitosamente.\nTu usuario/RUT es: {new_rut}\nTu clave temporal de acceso es: {temp_pwd}\n\nPor seguridad, esta clave caducará en 24 horas y el sistema te pedirá cambiarla apenas inicies sesión.\n\nSaludos,\nEquipo NeuroForge"
+                                if enviar_correo_real(new_email, asunto, cuerpo):
+                                    st.info(f"📧 Correo enviado exitosamente a {new_email}.")
+                                else:
+                                    st.warning(f"⚠️ La cuenta se creó, pero falta configurar el servidor de correos (SMTP Secrets). La clave temporal es: {temp_pwd}")
 
             with tab_recuperar:
                 with st.form("recover_form"):
@@ -195,8 +237,14 @@ try:
                                 user_rec.must_change_password = True
                                 user_rec.account_expires_at = datetime.utcnow() + timedelta(hours=24)
                                 db.commit()
-                                st.success(f"📧 Clave temporal enviada a {rec_email}")
-                                st.info(f"*(Simulación) Tu clave temporal es: {temp_pwd}*")
+                                st.success("Petición procesada.")
+                                
+                                asunto = "NeuroForge - Recuperación de Contraseña"
+                                cuerpo = f"Hola,\n\nHas solicitado recuperar tu acceso.\nTu nueva clave temporal es: {temp_pwd}\n\nRecuerda cambiarla al iniciar sesión.\n\nSaludos."
+                                if enviar_correo_real(rec_email, asunto, cuerpo):
+                                    st.info(f"📧 Hemos enviado las instrucciones a {rec_email}")
+                                else:
+                                    st.warning(f"⚠️ Falta configurar servidor de correos (SMTP). Tu clave temporal es: {temp_pwd}")
                             else:
                                 st.error("RUT o correo no encontrados.")
 
@@ -497,7 +545,13 @@ try:
                             db.add(nuevo_usuario)
                             db.commit()
                             st.success(f"Cuenta de {new_rol} para '{new_rut}' creada exitosamente.")
-                            st.info(f"📧 *(Simulación)* Correo enviado a {new_email} con clave inicial: {temp_pwd}")
+                            
+                            asunto = "Acceso Creado - NeuroForge"
+                            cuerpo = f"Hola,\n\nEl Administrador ha creado tu cuenta de {new_rol}.\nUsuario: {new_rut}\nClave temporal: {temp_pwd}\n\nIngresa al portal para cambiar tu clave.\n\nSaludos."
+                            if enviar_correo_real(new_email, asunto, cuerpo):
+                                st.info(f"📧 Correo con clave inicial enviado a {new_email}")
+                            else:
+                                st.warning(f"⚠️ Cuenta creada, pero falta configurar el servidor SMTP. Entrégale esta clave al usuario: {temp_pwd}")
         
         with tab_lista:
             st.subheader("Analítica y Control de Usuarios")
