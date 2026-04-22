@@ -78,6 +78,13 @@ def inicializar_base_datos():
     db_temp = SessionLocal()
     try:
         try:
+            db_temp.query(UsuarioNiño.rut).first()
+        except SQLAlchemyError:
+            db_temp.rollback()
+            UsuarioNiño.__table__.drop(engine, checkfirst=True)
+            UsuarioNiño.__table__.create(engine)
+            
+        try:
             db_temp.query(UsuarioWeb).first()
         except SQLAlchemyError:
             db_temp.rollback()
@@ -138,16 +145,6 @@ try:
         st.title("🔐 Acceso a NeuroForge")
         st.markdown("Por favor, ingresa tus credenciales para continuar.")
         
-        # Crear usuario admin por defecto si no existe en la BD
-        admin_exists = db.query(UsuarioWeb).filter(UsuarioWeb.username == "admin").first()
-        if not admin_exists:
-            default_admin = UsuarioWeb(username="admin", password="123", rol="MasterAdmin")
-            db.add(default_admin)
-            db.commit()
-        elif admin_exists.rol == "Admin":
-            admin_exists.rol = "MasterAdmin"
-            db.commit()
-
         col1, col2 = st.columns([1, 2])
         with col1:
             tab_login, tab_registro, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse", "🆘 Recuperar Contraseña"])
@@ -372,21 +369,32 @@ try:
         st.title("📝 Directorio PIE y Asignación de Casos")
         with st.form("nuevo_alumno_form", clear_on_submit=True):
             st.subheader("Añadir Nuevo Alumno")
+            rut_nuevo = st.text_input("RUT del Alumno (Ej: 12345678-9)")
             nombre_nuevo = st.text_input("Nombre completo del alumno")
             perfil_nuevo = st.selectbox("Perfil Diagnóstico", ["TDAH", "Dislexia", "TEA", "Sin especificar"])
             curso_nuevo = st.text_input("Curso (Ej: 3ro Básico)")
-            profe_nuevo = st.text_input("Profesor(a) Asignado(a) (Ej: Profe Ana)")
+            profe_nuevo = st.text_input("RUT del Profesor(a) Asignado(a)")
             submitted = st.form_submit_button("Añadir Alumno")
             if submitted:
-                if not nombre_nuevo or not curso_nuevo or not profe_nuevo:
+                if not rut_nuevo or not nombre_nuevo or not curso_nuevo or not profe_nuevo:
                     st.error("Por favor, completa todos los campos obligatorios del alumno.")
+                elif not validar_rut(rut_nuevo):
+                    st.error("El RUT del alumno es inválido (formato: 12345678-9).")
                 elif not validar_rut(profe_nuevo):
                     st.error("El RUT del profesor asignado es inválido (formato: 12345678-9).")
                 else:
-                    nuevo_nino = UsuarioNiño(nombre=nombre_nuevo, perfil_diagnostico=perfil_nuevo, curso=curso_nuevo, profesor_asignado=profe_nuevo)
-                    db.add(nuevo_nino)
-                    db.commit()
-                    st.success(f"¡Alumno '{nombre_nuevo}' añadido correctamente y asignado a {profe_nuevo}!")
+                    profesor_existe = db.query(UsuarioWeb).filter(UsuarioWeb.username == profe_nuevo, UsuarioWeb.rol == "Profesor").first()
+                    if not profesor_existe:
+                        st.error(f"No se encontró un profesor con el RUT '{profe_nuevo}'. Por favor, crea la cuenta del profesor primero en 'Gestión de Usuarios'.")
+                    else:
+                        existe_alumno = db.query(UsuarioNiño).filter(UsuarioNiño.rut == rut_nuevo).first()
+                        if existe_alumno:
+                            st.error("Ya existe un alumno registrado con este RUT.")
+                        else:
+                            nuevo_nino = UsuarioNiño(rut=rut_nuevo, nombre=nombre_nuevo, perfil_diagnostico=perfil_nuevo, curso=curso_nuevo, profesor_asignado=profe_nuevo)
+                            db.add(nuevo_nino)
+                            db.commit()
+                            st.success(f"¡Alumno '{nombre_nuevo}' añadido correctamente y asignado a {profe_nuevo}!")
 
         st.divider()
         st.subheader("Directorio y Métricas de Alumnos")
@@ -395,7 +403,7 @@ try:
             col_lista, col_grafica = st.columns(2)
             with col_lista:
                 st.markdown("**Lista Detallada:**")
-                df_directorio = pd.DataFrame([{"ID": a.id, "Nombre": a.nombre, "Curso": a.curso, "Perfil": a.perfil_diagnostico, "Profesor": a.profesor_asignado} for a in alumnos_registrados])
+                df_directorio = pd.DataFrame([{"RUT": a.rut, "Nombre": a.nombre, "Curso": a.curso, "Perfil": a.perfil_diagnostico, "Profesor (RUT)": a.profesor_asignado} for a in alumnos_registrados])
                 st.dataframe(df_directorio, hide_index=True)
             with col_grafica:
                 df_perfiles = pd.DataFrame([a.perfil_diagnostico for a in alumnos_registrados], columns=['Perfil'])

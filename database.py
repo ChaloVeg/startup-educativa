@@ -24,6 +24,7 @@ Base = declarative_base()
 class UsuarioNiño(Base):
     __tablename__ = "ninos"
     id = Column(Integer, primary_key=True, index=True)
+    rut = Column(String, unique=True, index=True)
     nombre = Column(String)
     perfil_diagnostico = Column(String) # TEA, TDAH, etc.
     curso = Column(String, default="No asignado")
