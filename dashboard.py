@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import numpy as np
 from database import SessionLocal, UsuarioNiño, Progreso, TestEvaluacion, CatalogoAcciones, AccionAsignada, Sesion, ConfiguracionProfesor, UsuarioWeb, Base, engine
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from engine import MotorInteligenciaEmocional
 from ai_engine import NeuroForgeAI
 import random
@@ -30,6 +31,33 @@ st.markdown(ocultar_menu_estilo, unsafe_allow_html=True)
 Base.metadata.create_all(bind=engine)
 
 db = SessionLocal()
+
+# --- AUTO-REPARACIÓN DE BASE DE DATOS ---
+# Si el sistema detecta columnas faltantes de versiones anteriores en la nube, 
+# recrea solo las tablas afectadas automáticamente sin borrar el progreso de los alumnos.
+try:
+    db.query(UsuarioWeb).first()
+except SQLAlchemyError:
+    db.rollback()
+    UsuarioWeb.__table__.drop(engine, checkfirst=True)
+    UsuarioWeb.__table__.create(engine)
+    st.rerun()
+
+try:
+    db.query(AccionAsignada).first()
+except SQLAlchemyError:
+    db.rollback()
+    AccionAsignada.__table__.drop(engine, checkfirst=True)
+    AccionAsignada.__table__.create(engine)
+    st.rerun()
+
+try:
+    db.query(ConfiguracionProfesor).first()
+except SQLAlchemyError:
+    db.rollback()
+    ConfiguracionProfesor.__table__.drop(engine, checkfirst=True)
+    ConfiguracionProfesor.__table__.create(engine)
+    st.rerun()
 
 try:
     # --- SISTEMA DE LOGIN ---
