@@ -10,7 +10,15 @@ from engine import MotorInteligenciaEmocional
 from ai_engine import NeuroForgeAI
 import random
 from datetime import datetime, timedelta
+import re
 
+def validar_rut(rut):
+    """Valida formato de RUT chileno simple: 12345678-9 (sin puntos, con guion)"""
+    return re.match(r'^\d{7,8}-[0-9Kk]$', str(rut)) is not None
+
+def validar_correo(correo):
+    """Valida formato de correo electrónico estándar"""
+    return re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', str(correo)) is not None
 
 # Configuración de la interfaz
 st.set_page_config(page_title="NeuroForge: Coordinación PIE", layout="wide")
@@ -140,24 +148,31 @@ try:
                     new_email = st.text_input("Ingresa tu Correo Electrónico")
                     reg_btn = st.form_submit_button("Crear Cuenta")
                     
-                    if reg_btn and new_rut and new_email:
-                        existe = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
-                        if existe:
-                            st.error("Ya existe una cuenta con este RUT.")
+                    if reg_btn:
+                        if not new_rut or not new_email:
+                            st.error("Por favor, completa todos los campos.")
+                        elif not validar_rut(new_rut):
+                            st.error("RUT inválido. Usa el formato 12345678-9 (sin puntos y con guion).")
+                        elif not validar_correo(new_email):
+                            st.error("El formato del correo electrónico es inválido.")
                         else:
-                            temp_pwd = str(random.randint(10000, 99999))
-                            nuevo_profe = UsuarioWeb(
-                                username=new_rut, 
-                                email=new_email,
-                                password=temp_pwd, 
-                                rol="Profesor",
-                                must_change_password=True,
-                                account_expires_at=datetime.utcnow() + timedelta(hours=24)
-                            )
-                            db.add(nuevo_profe)
-                            db.commit()
-                            st.success("¡Cuenta creada exitosamente!")
-                            st.info(f"📧 *(Simulación)* Correo enviado a {new_email} con clave temporal: {temp_pwd}")
+                            existe = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
+                            if existe:
+                                st.error("Ya existe una cuenta con este RUT.")
+                            else:
+                                temp_pwd = str(random.randint(10000, 99999))
+                                nuevo_profe = UsuarioWeb(
+                                    username=new_rut, 
+                                    email=new_email,
+                                    password=temp_pwd, 
+                                    rol="Profesor",
+                                    must_change_password=True,
+                                    account_expires_at=datetime.utcnow() + timedelta(hours=24)
+                                )
+                                db.add(nuevo_profe)
+                                db.commit()
+                                st.success("¡Cuenta creada exitosamente!")
+                                st.info(f"📧 *(Simulación)* Correo enviado a {new_email} con clave temporal: {temp_pwd}")
 
             with tab_recuperar:
                 with st.form("recover_form"):
@@ -165,18 +180,25 @@ try:
                     rec_email = st.text_input("Ingresa tu Correo")
                     reg_btn = st.form_submit_button("Recuperar Contraseña")
                     
-                    if reg_btn and rec_rut and rec_email:
-                        user_rec = db.query(UsuarioWeb).filter(UsuarioWeb.username == rec_rut, UsuarioWeb.email == rec_email).first()
-                        if user_rec:
-                            temp_pwd = str(random.randint(10000, 99999))
-                            user_rec.password = temp_pwd
-                            user_rec.must_change_password = True
-                            user_rec.account_expires_at = datetime.utcnow() + timedelta(hours=24)
-                            db.commit()
-                            st.success(f"📧 Clave temporal enviada a {rec_email}")
-                            st.info(f"*(Simulación) Tu clave temporal es: {temp_pwd}*")
+                    if reg_btn:
+                        if not rec_rut or not rec_email:
+                            st.error("Por favor, completa todos los campos.")
+                        elif not validar_rut(rec_rut):
+                            st.error("RUT inválido. Usa el formato 12345678-9.")
+                        elif not validar_correo(rec_email):
+                            st.error("El formato del correo electrónico es inválido.")
                         else:
-                            st.error("RUT o correo no encontrados.")
+                            user_rec = db.query(UsuarioWeb).filter(UsuarioWeb.username == rec_rut, UsuarioWeb.email == rec_email).first()
+                            if user_rec:
+                                temp_pwd = str(random.randint(10000, 99999))
+                                user_rec.password = temp_pwd
+                                user_rec.must_change_password = True
+                                user_rec.account_expires_at = datetime.utcnow() + timedelta(hours=24)
+                                db.commit()
+                                st.success(f"📧 Clave temporal enviada a {rec_email}")
+                                st.info(f"*(Simulación) Tu clave temporal es: {temp_pwd}*")
+                            else:
+                                st.error("RUT o correo no encontrados.")
 
             st.divider()
             if st.button("👦 Entrar como Alumno (Check-In)", use_container_width=True):
@@ -296,11 +318,16 @@ try:
             curso_nuevo = st.text_input("Curso (Ej: 3ro Básico)")
             profe_nuevo = st.text_input("Profesor(a) Asignado(a) (Ej: Profe Ana)")
             submitted = st.form_submit_button("Añadir Alumno")
-            if submitted and nombre_nuevo:
-                nuevo_nino = UsuarioNiño(nombre=nombre_nuevo, perfil_diagnostico=perfil_nuevo, curso=curso_nuevo, profesor_asignado=profe_nuevo)
-                db.add(nuevo_nino)
-                db.commit()
-                st.success(f"¡Alumno '{nombre_nuevo}' añadido correctamente y asignado a {profe_nuevo}!")
+            if submitted:
+                if not nombre_nuevo or not curso_nuevo or not profe_nuevo:
+                    st.error("Por favor, completa todos los campos obligatorios del alumno.")
+                elif not validar_rut(profe_nuevo):
+                    st.error("El RUT del profesor asignado es inválido (formato: 12345678-9).")
+                else:
+                    nuevo_nino = UsuarioNiño(nombre=nombre_nuevo, perfil_diagnostico=perfil_nuevo, curso=curso_nuevo, profesor_asignado=profe_nuevo)
+                    db.add(nuevo_nino)
+                    db.commit()
+                    st.success(f"¡Alumno '{nombre_nuevo}' añadido correctamente y asignado a {profe_nuevo}!")
 
         st.divider()
         st.subheader("Directorio y Métricas de Alumnos")
@@ -330,15 +357,18 @@ try:
             descripcion = st.text_area("Descripción Pedagógica")
             categoria = st.selectbox("Pilar / Categoría", ["Emoción", "Adaptabilidad", "Autonomía"])
             submitted = st.form_submit_button("Guardar en Catálogo")
-            if submitted and nombre:
-                existe = db.query(CatalogoAcciones).filter(CatalogoAcciones.nombre_accion.ilike(nombre)).first()
-                if existe:
-                    st.error(f"La acción '{nombre}' ya existe en el catálogo. Intenta con otro nombre.")
+            if submitted:
+                if not nombre or not descripcion:
+                    st.error("Por favor, completa el nombre y la descripción de la acción.")
                 else:
-                    nueva_accion = CatalogoAcciones(nombre_accion=nombre, descripcion=descripcion, categoria=categoria, es_personalizada=True)
-                    db.add(nueva_accion)
-                    db.commit()
-                    st.success(f"Acción '{nombre}' registrada exitosamente.")
+                    existe = db.query(CatalogoAcciones).filter(CatalogoAcciones.nombre_accion.ilike(nombre)).first()
+                    if existe:
+                        st.error(f"La acción '{nombre}' ya existe en el catálogo. Intenta con otro nombre.")
+                    else:
+                        nueva_accion = CatalogoAcciones(nombre_accion=nombre, descripcion=descripcion, categoria=categoria, es_personalizada=True)
+                        db.add(nueva_accion)
+                        db.commit()
+                        st.success(f"Acción '{nombre}' registrada exitosamente.")
         st.divider()
         st.subheader("Catálogo Oficial de Estrategias")
         acciones = db.query(CatalogoAcciones).all()
@@ -364,10 +394,13 @@ try:
                     observaciones = st.text_area("Observaciones Clínicas / Notas del Docente")
                     submitted = st.form_submit_button("Guardar Evaluación")
                     if submitted:
-                        nueva_evaluacion = TestEvaluacion(nino_id=nino_id_seleccionado, tipo_test=tipo_test, puntuacion=puntuacion, observaciones=observaciones)
-                        db.add(nueva_evaluacion)
-                        db.commit()
-                        st.success(f"¡Evaluación '{tipo_test}' guardada exitosamente para {opciones_alumnos[nino_id_seleccionado]}!")
+                        if not observaciones:
+                            st.error("Por favor, ingresa las observaciones o notas de la evaluación.")
+                        else:
+                            nueva_evaluacion = TestEvaluacion(nino_id=nino_id_seleccionado, tipo_test=tipo_test, puntuacion=puntuacion, observaciones=observaciones)
+                            db.add(nueva_evaluacion)
+                            db.commit()
+                            st.success(f"¡Evaluación '{tipo_test}' guardada exitosamente para {opciones_alumnos[nino_id_seleccionado]}!")
             else:
                 st.warning("Debe registrar al menos un alumno en 'Directorio' antes de guardar evaluaciones.")
         with tab2:
@@ -440,24 +473,31 @@ try:
                 new_email = st.text_input("Correo Electrónico")
                 submit_user = st.form_submit_button("Crear y Enviar Accesos")
                 
-                if submit_user and new_rut and new_email:
-                    existe = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
-                    if existe:
-                        st.error("Ya existe una cuenta con este nombre de usuario o RUT.")
+                if submit_user:
+                    if not new_rut or not new_email:
+                        st.error("Por favor, completa todos los campos.")
+                    elif new_rol == "Profesor" and not validar_rut(new_rut):
+                        st.error("RUT inválido. Para profesores usa el formato 12345678-9.")
+                    elif not validar_correo(new_email):
+                        st.error("El formato del correo electrónico es inválido.")
                     else:
-                        temp_pwd = str(random.randint(10000, 99999))
-                        nuevo_usuario = UsuarioWeb(
-                            username=new_rut, 
-                            email=new_email,
-                            password=temp_pwd, 
-                            rol=new_rol,
-                            must_change_password=True,
-                            account_expires_at=datetime.utcnow() + timedelta(hours=24)
-                        )
-                        db.add(nuevo_usuario)
-                        db.commit()
-                        st.success(f"Cuenta de {new_rol} para '{new_rut}' creada exitosamente.")
-                        st.info(f"📧 *(Simulación)* Correo enviado a {new_email} con clave inicial: {temp_pwd}")
+                        existe = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
+                        if existe:
+                            st.error("Ya existe una cuenta con este nombre de usuario o RUT.")
+                        else:
+                            temp_pwd = str(random.randint(10000, 99999))
+                            nuevo_usuario = UsuarioWeb(
+                                username=new_rut, 
+                                email=new_email,
+                                password=temp_pwd, 
+                                rol=new_rol,
+                                must_change_password=True,
+                                account_expires_at=datetime.utcnow() + timedelta(hours=24)
+                            )
+                            db.add(nuevo_usuario)
+                            db.commit()
+                            st.success(f"Cuenta de {new_rol} para '{new_rut}' creada exitosamente.")
+                            st.info(f"📧 *(Simulación)* Correo enviado a {new_email} con clave inicial: {temp_pwd}")
         
         with tab_lista:
             st.subheader("Analítica y Control de Usuarios")
