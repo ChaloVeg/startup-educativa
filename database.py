@@ -83,5 +83,12 @@ class AccionAsignada(Base):
     fecha_asignacion = Column(DateTime, default=datetime.datetime.utcnow)
     estado = Column(String, default="Pendiente")
 
+class ConfiguracionProfesor(Base):
+    __tablename__ = "configuracion_profesores"
+    id = Column(Integer, primary_key=True, index=True)
+    nombre_profesor = Column(String, unique=True, index=True)
+    ver_alumnos = Column(Boolean, default=True) # Por defecto, pueden ver sus alumnos
+    ver_tareas = Column(Boolean, default=True)  # Por defecto, pueden ver sus tareas
+
 # Crear las tablas
 Base.metadata.create_all(bind=engine)

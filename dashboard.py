@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
-from database import SessionLocal, UsuarioNiño, Progreso, TestEvaluacion, CatalogoAcciones, AccionAsignada, Sesion
+from database import SessionLocal, UsuarioNiño, Progreso, TestEvaluacion, CatalogoAcciones, AccionAsignada, Sesion, ConfiguracionProfesor
 from sqlalchemy import text
 from engine import MotorInteligenciaEmocional
 from ai_engine import NeuroForgeAI
@@ -40,7 +40,7 @@ try:
         st.sidebar.markdown("### Menú Administrativo")
         vista_seleccionada = st.sidebar.radio(
             "Navegación:", 
-            ["Visión Global PIE", "Directorio y Asignaciones", "Catálogo Pedagógico", "Test y Evaluaciones"]
+            ["Visión Global PIE", "Directorio y Asignaciones", "Catálogo Pedagógico", "Test y Evaluaciones", "Gestión de Accesos"]
         )
 
     elif rol_usuario == "Profesor(a) Especialista":
@@ -50,10 +50,19 @@ try:
             profesores_db = ["Sin profesores asignados"]
         
         profe_seleccionado = st.sidebar.selectbox("👩‍🏫 Seleccione su cuenta:", profesores_db)
-        vista_seleccionada = st.sidebar.radio(
-            "Navegación:", 
-            ["Mis Alumnos y Avances", "Mi Panel de Tareas"]
-        )
+        
+        config_profe = db.query(ConfiguracionProfesor).filter(ConfiguracionProfesor.nombre_profesor == profe_seleccionado).first()
+        opciones_docente = []
+        if not config_profe or config_profe.ver_alumnos:
+            opciones_docente.append("Mis Alumnos y Avances")
+        if not config_profe or config_profe.ver_tareas:
+            opciones_docente.append("Mi Panel de Tareas")
+            
+        if opciones_docente:
+            vista_seleccionada = st.sidebar.radio("Navegación:", opciones_docente)
+        else:
+            st.sidebar.warning("No tienes vistas habilitadas por el Administrador.")
+            vista_seleccionada = "Acceso Restringido"
 
     else:
         vista_seleccionada = "Check-In"
