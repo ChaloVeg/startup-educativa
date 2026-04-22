@@ -192,29 +192,37 @@ try:
                         elif not validar_correo(new_email):
                             st.error("El formato del correo electrónico es inválido.")
                         else:
-                            existe = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
-                            if existe:
+                            existe_rut = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
+                            existe_correo = db.query(UsuarioWeb).filter(UsuarioWeb.email == new_email).first()
+                            
+                            if existe_rut:
                                 st.error("Ya existe una cuenta con este RUT.")
+                            elif existe_correo:
+                                st.error("Este correo electrónico ya está registrado en otra cuenta. Por favor, usa otro o recupera tu contraseña.")
                             else:
-                                temp_pwd = str(random.randint(10000, 99999))
-                                nuevo_profe = UsuarioWeb(
-                                    username=new_rut, 
-                                    email=new_email,
-                                    password=temp_pwd, 
-                                    rol="Profesor",
-                                    must_change_password=True,
-                                    account_expires_at=datetime.utcnow() + timedelta(hours=24)
-                                )
-                                db.add(nuevo_profe)
-                                db.commit()
-                                st.success("¡Cuenta creada exitosamente!")
-                                
-                                asunto = "Bienvenido a NeuroForge - Tu Clave Temporal"
-                                cuerpo = f"Hola,\n\nTu cuenta ha sido creada exitosamente.\nTu usuario/RUT es: {new_rut}\nTu clave temporal de acceso es: {temp_pwd}\n\nPor seguridad, esta clave caducará en 24 horas y el sistema te pedirá cambiarla apenas inicies sesión.\n\nSaludos,\nEquipo NeuroForge"
-                                if enviar_correo_real(new_email, asunto, cuerpo):
-                                    st.info(f"📧 Correo enviado exitosamente a {new_email}.")
-                                else:
-                                    st.warning(f"⚠️ La cuenta se creó, pero falta configurar el servidor de correos (SMTP Secrets). La clave temporal es: {temp_pwd}")
+                                try:
+                                    temp_pwd = str(random.randint(10000, 99999))
+                                    nuevo_profe = UsuarioWeb(
+                                        username=new_rut, 
+                                        email=new_email,
+                                        password=temp_pwd, 
+                                        rol="Profesor",
+                                        must_change_password=True,
+                                        account_expires_at=datetime.utcnow() + timedelta(hours=24)
+                                    )
+                                    db.add(nuevo_profe)
+                                    db.commit()
+                                    st.success("¡Cuenta creada exitosamente!")
+                                    
+                                    asunto = "Bienvenido a NeuroForge - Tu Clave Temporal"
+                                    cuerpo = f"Hola,\n\nTu cuenta ha sido creada exitosamente.\nTu usuario/RUT es: {new_rut}\nTu clave temporal de acceso es: {temp_pwd}\n\nPor seguridad, esta clave caducará en 24 horas y el sistema te pedirá cambiarla apenas inicies sesión.\n\nSaludos,\nEquipo NeuroForge"
+                                    if enviar_correo_real(new_email, asunto, cuerpo):
+                                        st.info(f"📧 Correo enviado exitosamente a {new_email}.")
+                                    else:
+                                        st.warning(f"⚠️ La cuenta se creó, pero falta configurar el servidor de correos (SMTP Secrets). La clave temporal es: {temp_pwd}")
+                                except Exception as e:
+                                    db.rollback()
+                                    st.error("Ocurrió un error en la base de datos al crear la cuenta. Por favor, intenta nuevamente.")
 
             with tab_recuperar:
                 with st.form("recover_form"):
