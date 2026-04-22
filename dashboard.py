@@ -121,6 +121,13 @@ try:
         st.title("🔐 Acceso a NeuroForge")
         st.markdown("Por favor, ingresa tus credenciales para continuar.")
         
+        # Crear usuario admin por defecto si no existe en la BD
+        admin_exists = db.query(UsuarioWeb).filter(UsuarioWeb.username == "admin").first()
+        if not admin_exists:
+            default_admin = UsuarioWeb(username="admin", password="123", rol="MasterAdmin")
+            db.add(default_admin)
+            db.commit()
+
         col1, col2 = st.columns([1, 2])
         with col1:
             tab_login, tab_registro, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse", "🆘 Recuperar Contraseña"])
