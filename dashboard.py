@@ -27,37 +27,38 @@ st.markdown(ocultar_menu_estilo, unsafe_allow_html=True)
 
 # Iniciar conexión segura con la BD
 
-# Forzar la creación de cualquier tabla faltante (como usuarios_web) antes de iniciar la sesión
-Base.metadata.create_all(bind=engine)
+@st.cache_resource
+def inicializar_base_datos():
+    """Verifica y repara la base de datos UNA SOLA VEZ al iniciar la app para evitar latencia."""
+    Base.metadata.create_all(bind=engine)
+    db_temp = SessionLocal()
+    try:
+        try:
+            db_temp.query(UsuarioWeb).first()
+        except SQLAlchemyError:
+            db_temp.rollback()
+            UsuarioWeb.__table__.drop(engine, checkfirst=True)
+            UsuarioWeb.__table__.create(engine)
+            
+        try:
+            db_temp.query(AccionAsignada).first()
+        except SQLAlchemyError:
+            db_temp.rollback()
+            AccionAsignada.__table__.drop(engine, checkfirst=True)
+            AccionAsignada.__table__.create(engine)
+            
+        try:
+            db_temp.query(ConfiguracionProfesor).first()
+        except SQLAlchemyError:
+            db_temp.rollback()
+            ConfiguracionProfesor.__table__.drop(engine, checkfirst=True)
+            ConfiguracionProfesor.__table__.create(engine)
+    finally:
+        db_temp.close()
+
+inicializar_base_datos()
 
 db = SessionLocal()
-
-# --- AUTO-REPARACIÓN DE BASE DE DATOS ---
-# Si el sistema detecta columnas faltantes de versiones anteriores en la nube, 
-# recrea solo las tablas afectadas automáticamente sin borrar el progreso de los alumnos.
-try:
-    db.query(UsuarioWeb).first()
-except SQLAlchemyError:
-    db.rollback()
-    UsuarioWeb.__table__.drop(engine, checkfirst=True)
-    UsuarioWeb.__table__.create(engine)
-    st.rerun()
-
-try:
-    db.query(AccionAsignada).first()
-except SQLAlchemyError:
-    db.rollback()
-    AccionAsignada.__table__.drop(engine, checkfirst=True)
-    AccionAsignada.__table__.create(engine)
-    st.rerun()
-
-try:
-    db.query(ConfiguracionProfesor).first()
-except SQLAlchemyError:
-    db.rollback()
-    ConfiguracionProfesor.__table__.drop(engine, checkfirst=True)
-    ConfiguracionProfesor.__table__.create(engine)
-    st.rerun()
 
 try:
     # --- SISTEMA DE LOGIN ---
@@ -397,6 +398,92 @@ try:
                         st.success(f"Permisos actualizados para {profe}.")
         else:
             st.info("Aún no hay profesores registrados en el sistema.")
+
+    elif vista_seleccionada == "Gestión de Usuarios y Accesos":
+        st.title("🔐 Gestión de Usuarios y Accesos")
+        st.markdown("Administra cuentas, visualiza la actividad del profesorado y controla sus permisos.")
+        
+        tab_crear, tab_lista = st.tabs(["➕ Dar de Alta Usuario", "📋 Directorio de Usuarios y Analítica"])
+        
+        with tab_crear:
+            with st.form("new_user_form_admin", clear_on_submit=True):
+                st.subheader("Crear Cuenta de Usuario")
+                st.caption("Se generará una clave inicial automática que expirará en 24 horas.")
+                new_rol = st.selectbox("Tipo de Cuenta", ["Profesor", "Admin"])
+                new_rut = st.text_input("RUT / Usuario")
+                new_email = st.text_input("Correo Electrónico")
+                submit_user = st.form_submit_button("Crear y Enviar Accesos")
+                
+                if submit_user and new_rut and new_email:
+                    existe = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
+                    if existe:
+                        st.error("Ya existe una cuenta con este nombre de usuario o RUT.")
+                    else:
+                        temp_pwd = str(random.randint(10000, 99999))
+                        nuevo_usuario = UsuarioWeb(
+                            username=new_rut, 
+                            email=new_email,
+                            password=temp_pwd, 
+                            rol=new_rol,
+                            must_change_password=True,
+                            account_expires_at=datetime.utcnow() + timedelta(hours=24)
+                        )
+                        db.add(nuevo_usuario)
+                        db.commit()
+                        st.success(f"Cuenta de {new_rol} para '{new_rut}' creada exitosamente.")
+                        st.info(f"📧 *(Simulación)* Correo enviado a {new_email} con clave inicial: {temp_pwd}")
+        
+        with tab_lista:
+            st.subheader("Analítica y Control de Usuarios")
+            usuarios_unicos = db.query(UsuarioWeb).filter(UsuarioWeb.username != "admin").all()
+        
+            if usuarios_unicos:
+                for usuario in usuarios_unicos:
+                    if not usuario.created_at:
+                        usuario.created_at = datetime.utcnow()
+                    dias_creacion = (datetime.utcnow() - usuario.created_at).days
+                    
+                    with st.expander(f"👤 {usuario.username} | Rol: {usuario.rol} | ⏳ Días en sistema: {dias_creacion}"):
+                        st.write(f"**Correo:** {usuario.email}")
+                        estado_cuenta = "Caducada" if usuario.must_change_password and usuario.account_expires_at and datetime.utcnow() > usuario.account_expires_at else "Pendiente de Cambio" if usuario.must_change_password else "Activa"
+                        st.write(f"**Estado:** {estado_cuenta}")
+                        
+                        if usuario.rol == "Profesor":
+                            alumnos_ids = [n.id for n in db.query(UsuarioNiño).filter(UsuarioNiño.profesor_asignado == usuario.username).all()]
+                            pendientes = db.query(AccionAsignada).filter(AccionAsignada.nino_id.in_(alumnos_ids), AccionAsignada.estado == "Pendiente").count() if alumnos_ids else 0
+                            en_proceso = db.query(AccionAsignada).filter(AccionAsignada.nino_id.in_(alumnos_ids), AccionAsignada.estado == "En Proceso").count() if alumnos_ids else 0
+                            asignadas_total = db.query(AccionAsignada).filter(AccionAsignada.nino_id.in_(alumnos_ids)).count() if alumnos_ids else 0
+                            
+                            c1, c2, c3 = st.columns(3)
+                            c1.metric("Tareas Totales", asignadas_total)
+                            c2.metric("En Proceso", en_proceso)
+                            c3.metric("Pendientes", pendientes)
+                            
+                            config = db.query(ConfiguracionProfesor).filter(ConfiguracionProfesor.nombre_profesor == usuario.username).first()
+                            if not config:
+                                config = ConfiguracionProfesor(nombre_profesor=usuario.username)
+                                db.add(config)
+                                db.commit()
+                                db.refresh(config)
+                        
+                        col_btn1, col_btn2 = st.columns(2)
+                        if col_btn1.button("🗑️ Eliminar Usuario", key=f"del_{usuario.id}"):
+                            db.delete(usuario)
+                            db.commit()
+                            st.rerun()
+                        
+                        if usuario.rol == "Profesor":
+                            st.write("---")
+                            st.write("**Permisos de Vistas**")
+                            ver_alum = st.checkbox("Ver 'Mis Alumnos y Avances'", value=config.ver_alumnos, key=f"alum_{usuario.id}")
+                            ver_tar = st.checkbox("Ver 'Mi Panel de Tareas'", value=config.ver_tareas, key=f"tar_{usuario.id}")
+                            if st.button("Actualizar Permisos", key=f"btn_perm_{usuario.id}"):
+                                config.ver_alumnos = ver_alum
+                                config.ver_tareas = ver_tar
+                                db.commit()
+                                st.success("Permisos actualizados.")
+            else:
+                st.info("Aún no hay otros usuarios registrados en el sistema.")
 
     # ==========================================
     # VISTAS: PROFESOR(A) ESPECIALISTA
