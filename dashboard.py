@@ -435,7 +435,12 @@ try:
             df_acciones = pd.DataFrame([{"ID": a.id, "Nombre": a.nombre_accion, "Categoría": a.categoria, "Descripción": a.descripcion, "Personalizada": "Sí" if a.es_personalizada else "Por defecto"} for a in acciones])
             st.dataframe(df_acciones, use_container_width=True)
         else:
-            st.info("No hay acciones registradas. Ejecuta `seed.py` para cargar las predeterminadas.")
+            st.info("No hay acciones registradas en el catálogo.")
+            if st.button("📚 Cargar Estrategias Predeterminadas"):
+                from seed import seed_data
+                with st.spinner("Cargando el catálogo base..."):
+                    seed_data()
+                st.rerun()
 
     elif vista_seleccionada == "Test y Evaluaciones":
         st.title("📋 Evaluaciones Psicométricas y Cognitivas")
