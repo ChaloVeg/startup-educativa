@@ -182,18 +182,23 @@ try:
                     st.markdown("Registro exclusivo para Profesores")
                     new_rut = st.text_input("Ingresa tu RUT (Será tu usuario)")
                     new_email = st.text_input("Ingresa tu Correo Electrónico")
+                    new_email = st.text_input("Ingresa tu Correo Electrónico (Opcional)")
                     reg_btn = st.form_submit_button("Crear Cuenta")
                     
                     if reg_btn:
                         if not new_rut or not new_email:
                             st.error("Por favor, completa todos los campos.")
+                        if not new_rut:
+                            st.error("Por favor, ingresa tu RUT.")
                         elif not validar_rut(new_rut):
                             st.error("RUT inválido. Usa el formato 12345678-9 (sin puntos y con guion).")
                         elif not validar_correo(new_email):
+                        elif new_email and not validar_correo(new_email):
                             st.error("El formato del correo electrónico es inválido.")
                         else:
                             existe_rut = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
                             existe_correo = db.query(UsuarioWeb).filter(UsuarioWeb.email == new_email).first()
+                            existe_correo = db.query(UsuarioWeb).filter(UsuarioWeb.email == new_email).first() if new_email else None
                             
                             if existe_rut:
                                 st.error("Ya existe una cuenta con este RUT.")
@@ -205,6 +210,7 @@ try:
                                     nuevo_profe = UsuarioWeb(
                                         username=new_rut, 
                                         email=new_email,
+                                        email=new_email if new_email else None,
                                         password=temp_pwd, 
                                         rol="Profesor",
                                         must_change_password=True,
@@ -218,8 +224,16 @@ try:
                                     cuerpo = f"Hola,\n\nTu cuenta ha sido creada exitosamente.\nTu usuario/RUT es: {new_rut}\nTu clave temporal de acceso es: {temp_pwd}\n\nPor seguridad, esta clave caducará en 24 horas y el sistema te pedirá cambiarla apenas inicies sesión.\n\nSaludos,\nEquipo NeuroForge"
                                     if enviar_correo_real(new_email, asunto, cuerpo):
                                         st.info(f"📧 Correo enviado exitosamente a {new_email}.")
+                                    if new_email:
+                                        asunto = "Bienvenido a NeuroForge - Tu Clave Temporal"
+                                        cuerpo = f"Hola,\n\nTu cuenta ha sido creada exitosamente.\nTu usuario/RUT es: {new_rut}\nTu clave temporal de acceso es: {temp_pwd}\n\nPor seguridad, esta clave caducará en 24 horas y el sistema te pedirá cambiarla apenas inicies sesión.\n\nSaludos,\nEquipo NeuroForge"
+                                        if enviar_correo_real(new_email, asunto, cuerpo):
+                                            st.info(f"📧 Correo enviado exitosamente a {new_email}.")
+                                        else:
+                                            st.warning(f"⚠️ La cuenta se creó, pero falta configurar el servidor de correos. La clave temporal es: {temp_pwd}")
                                     else:
                                         st.warning(f"⚠️ La cuenta se creó, pero falta configurar el servidor de correos (SMTP Secrets). La clave temporal es: {temp_pwd}")
+                                        st.warning(f"⚠️ Cuenta creada sin correo. Anota tu clave temporal ahora: {temp_pwd}")
                                 except Exception as e:
                                     db.rollback()
                                     st.error("Ocurrió un error en la base de datos al crear la cuenta. Por favor, intenta nuevamente.")
@@ -527,18 +541,23 @@ try:
                 new_rol = st.selectbox("Tipo de Cuenta", ["Profesor", "Admin"])
                 new_rut = st.text_input("RUT / Usuario")
                 new_email = st.text_input("Correo Electrónico")
+                new_email = st.text_input("Correo Electrónico (Opcional)")
                 submit_user = st.form_submit_button("Crear y Enviar Accesos")
                 
                 if submit_user:
                     if not new_rut or not new_email:
                         st.error("Por favor, completa todos los campos.")
+                    if not new_rut:
+                        st.error("Por favor, ingresa el RUT / Usuario.")
                     elif new_rol == "Profesor" and not validar_rut(new_rut):
                         st.error("RUT inválido. Para profesores usa el formato 12345678-9.")
                     elif not validar_correo(new_email):
+                    elif new_email and not validar_correo(new_email):
                         st.error("El formato del correo electrónico es inválido.")
                     else:
                         existe_rut = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
                         existe_correo = db.query(UsuarioWeb).filter(UsuarioWeb.email == new_email).first()
+                        existe_correo = db.query(UsuarioWeb).filter(UsuarioWeb.email == new_email).first() if new_email else None
                         
                         if existe_rut:
                             st.error("Ya existe una cuenta con este nombre de usuario o RUT.")
@@ -550,6 +569,7 @@ try:
                                 nuevo_usuario = UsuarioWeb(
                                     username=new_rut, 
                                     email=new_email,
+                                    email=new_email if new_email else None,
                                     password=temp_pwd, 
                                     rol=new_rol,
                                     must_change_password=True,
@@ -563,8 +583,16 @@ try:
                                 cuerpo = f"Hola,\n\nEl Administrador ha creado tu cuenta de {new_rol}.\nUsuario: {new_rut}\nClave temporal: {temp_pwd}\n\nIngresa al portal para cambiar tu clave.\n\nSaludos."
                                 if enviar_correo_real(new_email, asunto, cuerpo):
                                     st.info(f"📧 Correo con clave inicial enviado a {new_email}")
+                                if new_email:
+                                    asunto = "Acceso Creado - NeuroForge"
+                                    cuerpo = f"Hola,\n\nEl Administrador ha creado tu cuenta de {new_rol}.\nUsuario: {new_rut}\nClave temporal: {temp_pwd}\n\nIngresa al portal para cambiar tu clave.\n\nSaludos."
+                                    if enviar_correo_real(new_email, asunto, cuerpo):
+                                        st.info(f"📧 Correo con clave inicial enviado a {new_email}")
+                                    else:
+                                        st.warning(f"⚠️ Cuenta creada, pero falta configurar el servidor SMTP. Entrégale esta clave al usuario: {temp_pwd}")
                                 else:
                                     st.warning(f"⚠️ Cuenta creada, pero falta configurar el servidor SMTP. Entrégale esta clave al usuario: {temp_pwd}")
+                                    st.warning(f"⚠️ Cuenta creada sin correo. Entrégale esta clave temporal al usuario: {temp_pwd}")
                             except Exception as e:
                                 db.rollback()
                                 st.error("Ocurrió un error en la base de datos al crear la cuenta. Por favor, intenta nuevamente.")
@@ -607,6 +635,18 @@ try:
                             db.delete(usuario)
                             db.commit()
                             st.rerun()
+                            
+                        if col_btn2.button("🔄 Resetear Clave", key=f"reset_{usuario.id}"):
+                            temp_pwd = str(random.randint(10000, 99999))
+                            usuario.password = temp_pwd
+                            usuario.must_change_password = True
+                            usuario.account_expires_at = datetime.utcnow() + timedelta(hours=24)
+                            db.commit()
+                            st.success(f"Clave temporal generada exitosamente para {usuario.username}: **{temp_pwd}**")
+                            if usuario.email:
+                                asunto = "NeuroForge - Clave Reseteada por Administrador"
+                                cuerpo = f"Hola,\n\nEl administrador ha reseteado tu acceso.\nTu nueva clave temporal es: {temp_pwd}\n\nRecuerda cambiarla al iniciar sesión.\n\nSaludos."
+                                enviar_correo_real(usuario.email, asunto, cuerpo)
                         
                         if usuario.rol == "Profesor":
                             st.write("---")
