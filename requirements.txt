@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+streamlit
+pandas
+plotly
+numpy
+pytest
+psycopg2-binary
