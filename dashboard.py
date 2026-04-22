@@ -540,23 +540,18 @@ try:
                 st.caption("Se generará una clave inicial automática que expirará en 24 horas.")
                 new_rol = st.selectbox("Tipo de Cuenta", ["Profesor", "Admin"])
                 new_rut = st.text_input("RUT / Usuario")
-                new_email = st.text_input("Correo Electrónico")
                 new_email = st.text_input("Correo Electrónico (Opcional)")
                 submit_user = st.form_submit_button("Crear y Enviar Accesos")
                 
                 if submit_user:
-                    if not new_rut or not new_email:
-                        st.error("Por favor, completa todos los campos.")
                     if not new_rut:
                         st.error("Por favor, ingresa el RUT / Usuario.")
                     elif new_rol == "Profesor" and not validar_rut(new_rut):
                         st.error("RUT inválido. Para profesores usa el formato 12345678-9.")
-                    elif not validar_correo(new_email):
                     elif new_email and not validar_correo(new_email):
                         st.error("El formato del correo electrónico es inválido.")
                     else:
                         existe_rut = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
-                        existe_correo = db.query(UsuarioWeb).filter(UsuarioWeb.email == new_email).first()
                         existe_correo = db.query(UsuarioWeb).filter(UsuarioWeb.email == new_email).first() if new_email else None
                         
                         if existe_rut:
@@ -568,7 +563,6 @@ try:
                                 temp_pwd = str(random.randint(10000, 99999))
                                 nuevo_usuario = UsuarioWeb(
                                     username=new_rut, 
-                                    email=new_email,
                                     email=new_email if new_email else None,
                                     password=temp_pwd, 
                                     rol=new_rol,
@@ -579,10 +573,6 @@ try:
                                 db.commit()
                                 st.success(f"Cuenta de {new_rol} para '{new_rut}' creada exitosamente.")
                                 
-                                asunto = "Acceso Creado - NeuroForge"
-                                cuerpo = f"Hola,\n\nEl Administrador ha creado tu cuenta de {new_rol}.\nUsuario: {new_rut}\nClave temporal: {temp_pwd}\n\nIngresa al portal para cambiar tu clave.\n\nSaludos."
-                                if enviar_correo_real(new_email, asunto, cuerpo):
-                                    st.info(f"📧 Correo con clave inicial enviado a {new_email}")
                                 if new_email:
                                     asunto = "Acceso Creado - NeuroForge"
                                     cuerpo = f"Hola,\n\nEl Administrador ha creado tu cuenta de {new_rol}.\nUsuario: {new_rut}\nClave temporal: {temp_pwd}\n\nIngresa al portal para cambiar tu clave.\n\nSaludos."
@@ -591,7 +581,6 @@ try:
                                     else:
                                         st.warning(f"⚠️ Cuenta creada, pero falta configurar el servidor SMTP. Entrégale esta clave al usuario: {temp_pwd}")
                                 else:
-                                    st.warning(f"⚠️ Cuenta creada, pero falta configurar el servidor SMTP. Entrégale esta clave al usuario: {temp_pwd}")
                                     st.warning(f"⚠️ Cuenta creada sin correo. Entrégale esta clave temporal al usuario: {temp_pwd}")
                             except Exception as e:
                                 db.rollback()
