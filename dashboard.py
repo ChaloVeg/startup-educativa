@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
-from database import SessionLocal, UsuarioNiño, Progreso, TestEvaluacion, CatalogoAcciones, AccionAsignada, Sesion, ConfiguracionProfesor, UsuarioWeb
+from database import SessionLocal, UsuarioNiño, Progreso, TestEvaluacion, CatalogoAcciones, AccionAsignada, Sesion, ConfiguracionProfesor, UsuarioWeb, Base, engine
 from sqlalchemy import text
 from engine import MotorInteligenciaEmocional
 from ai_engine import NeuroForgeAI
@@ -25,6 +25,10 @@ ocultar_menu_estilo = """
 st.markdown(ocultar_menu_estilo, unsafe_allow_html=True)
 
 # Iniciar conexión segura con la BD
+
+# Forzar la creación de cualquier tabla faltante (como usuarios_web) antes de iniciar la sesión
+Base.metadata.create_all(bind=engine)
+
 db = SessionLocal()
 
 try:
