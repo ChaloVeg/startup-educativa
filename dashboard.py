@@ -45,21 +45,39 @@ try:
 
         col1, col2 = st.columns([1, 2])
         with col1:
-            with st.form("login_form"):
-                st.subheader("Iniciar Sesión")
-                user_input = st.text_input("Usuario")
-                pwd_input = st.text_input("Contraseña", type="password")
-                submit_btn = st.form_submit_button("Ingresar")
+            tab_login, tab_registro = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse"])
+            
+            with tab_login:
+                with st.form("login_form"):
+                    user_input = st.text_input("Usuario")
+                    pwd_input = st.text_input("Contraseña", type="password")
+                    submit_btn = st.form_submit_button("Ingresar")
 
-                if submit_btn:
-                    db_user = db.query(UsuarioWeb).filter(UsuarioWeb.username == user_input, UsuarioWeb.password == pwd_input).first()
-                    if db_user:
-                        st.session_state.logged_in = True
-                        st.session_state.rol = db_user.rol
-                        st.session_state.username = db_user.username
-                        st.rerun()
-                    else:
-                        st.error("Usuario o contraseña incorrectos.")
+                    if submit_btn:
+                        db_user = db.query(UsuarioWeb).filter(UsuarioWeb.username == user_input, UsuarioWeb.password == pwd_input).first()
+                        if db_user:
+                            st.session_state.logged_in = True
+                            st.session_state.rol = db_user.rol
+                            st.session_state.username = db_user.username
+                            st.rerun()
+                        else:
+                            st.error("Usuario o contraseña incorrectos.")
+                            
+            with tab_registro:
+                with st.form("register_form"):
+                    new_user = st.text_input("Nuevo Usuario")
+                    new_pwd = st.text_input("Nueva Contraseña", type="password")
+                    new_rol = st.selectbox("Rol del Usuario", ["Profesor", "Admin"])
+                    reg_btn = st.form_submit_button("Crear Cuenta")
+                    
+                    if reg_btn and new_user and new_pwd:
+                        existe = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_user).first()
+                        if existe:
+                            st.error("Este nombre de usuario ya existe. Intenta con otro.")
+                        else:
+                            db.add(UsuarioWeb(username=new_user, password=new_pwd, rol=new_rol))
+                            db.commit()
+                            st.success("¡Cuenta creada exitosamente! Ahora puedes iniciar sesión.")
 
             st.divider()
             if st.button("👦 Entrar como Alumno (Check-In)", use_container_width=True):
