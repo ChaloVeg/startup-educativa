@@ -77,6 +77,16 @@ try:
         total_alumnos = db.query(UsuarioNiño).count()
         total_tareas = db.query(AccionAsignada).filter(AccionAsignada.estado == "Pendiente").count()
         
+        if total_alumnos == 0:
+            st.info("👋 ¡Bienvenido a tu nueva base de datos en la nube! Actualmente está vacía.")
+            if st.button("🚀 Cargar Datos de Prueba Automáticos"):
+                from seed import seed_data
+                with st.spinner("Sembrando la base de datos con alumnos y catálogo..."):
+                    seed_data()
+                st.rerun()
+            st.markdown("*O si lo prefieres, ve a **Directorio y Asignaciones** en el menú izquierdo para crear tu primer alumno manualmente.*")
+            st.divider()
+
         c1, c2, c3 = st.columns(3)
         c1.metric("Estudiantes en PIE", total_alumnos)
         c2.metric("Tareas Docentes Pendientes", total_tareas)
@@ -199,6 +209,32 @@ try:
             else:
                 st.info("No hay evaluaciones registradas en el sistema todavía.")
 
+    elif vista_seleccionada == "Gestión de Accesos":
+        st.title("🔐 Gestión de Accesos para Profesores")
+        st.markdown("Controla qué secciones del sistema puede ver cada profesor especialista.")
+        
+        profesores_unicos = [r[0] for r in db.query(UsuarioNiño.profesor_asignado).distinct().all() if r[0] and r[0] != "Sin asignar"]
+        
+        if profesores_unicos:
+            for profe in profesores_unicos:
+                config = db.query(ConfiguracionProfesor).filter(ConfiguracionProfesor.nombre_profesor == profe).first()
+                if not config:
+                    config = ConfiguracionProfesor(nombre_profesor=profe)
+                    db.add(config)
+                    db.commit()
+                    db.refresh(config)
+                
+                with st.expander(f"⚙️ Configurar permisos para: {profe}"):
+                    ver_alum = st.checkbox("Ver 'Mis Alumnos y Avances'", value=config.ver_alumnos, key=f"alum_{profe}")
+                    ver_tar = st.checkbox("Ver 'Mi Panel de Tareas'", value=config.ver_tareas, key=f"tar_{profe}")
+                    if st.button("Guardar Cambios", key=f"btn_{profe}"):
+                        config.ver_alumnos = ver_alum
+                        config.ver_tareas = ver_tar
+                        db.commit()
+                        st.success(f"Permisos actualizados para {profe}.")
+        else:
+            st.info("Aún no hay profesores registrados en el sistema.")
+
     # ==========================================
     # VISTAS: PROFESOR(A) ESPECIALISTA
     # ==========================================
@@ -309,6 +345,10 @@ try:
                 st.success("¡Excelente! No tienes acciones pedagógicas pendientes para tus alumnos.")
         else:
             st.info("No tienes alumnos asignados actualmente.")
+
+    elif vista_seleccionada == "Acceso Restringido":
+        st.title("🚫 Acceso Restringido")
+        st.warning("El administrador ha desactivado temporalmente todas tus vistas. Por favor, comunícate con Coordinación PIE.")
 
     # ==========================================
     # VISTAS: MODO ALUMNO
