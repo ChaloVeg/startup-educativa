@@ -106,7 +106,7 @@ try:
 
         col1, col2 = st.columns([1, 2])
         with col1:
-            tab_login, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "🆘 Recuperar Contraseña"])
+            tab_login, tab_registro, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse", "🆘 Recuperar Contraseña"])
             
             with tab_login:
                 with st.form("login_form"):
@@ -132,7 +132,33 @@ try:
                                 st.rerun()
                         else:
                             st.error("Usuario o contraseña incorrectos.")
-                            
+
+            with tab_registro:
+                with st.form("register_form"):
+                    st.markdown("Registro exclusivo para Profesores")
+                    new_rut = st.text_input("Ingresa tu RUT (Será tu usuario)")
+                    new_email = st.text_input("Ingresa tu Correo Electrónico")
+                    reg_btn = st.form_submit_button("Crear Cuenta")
+                    
+                    if reg_btn and new_rut and new_email:
+                        existe = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_rut).first()
+                        if existe:
+                            st.error("Ya existe una cuenta con este RUT.")
+                        else:
+                            temp_pwd = str(random.randint(10000, 99999))
+                            nuevo_profe = UsuarioWeb(
+                                username=new_rut, 
+                                email=new_email,
+                                password=temp_pwd, 
+                                rol="Profesor",
+                                must_change_password=True,
+                                account_expires_at=datetime.utcnow() + timedelta(hours=24)
+                            )
+                            db.add(nuevo_profe)
+                            db.commit()
+                            st.success("¡Cuenta creada exitosamente!")
+                            st.info(f"📧 *(Simulación)* Correo enviado a {new_email} con clave temporal: {temp_pwd}")
+
             with tab_recuperar:
                 with st.form("recover_form"):
                     rec_rut = st.text_input("Ingresa tu RUT")
