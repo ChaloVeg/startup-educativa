@@ -81,6 +81,7 @@ class AccionAsignada(Base):
     nino_id = Column(Integer, ForeignKey("ninos.id"))
     accion_id = Column(Integer, ForeignKey("catalogo_acciones.id"))
     fecha_asignacion = Column(DateTime, default=datetime.datetime.utcnow)
+    fecha_vencimiento = Column(DateTime, nullable=True) # Para alertas de vencimiento
     estado = Column(String, default="Pendiente")
 
 class ConfiguracionProfesor(Base):
@@ -94,8 +95,12 @@ class UsuarioWeb(Base):
     __tablename__ = "usuarios_web"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
+    email = Column(String, unique=True, nullable=True)
     password = Column(String)
     rol = Column(String) # "Admin" o "Profesor"
+    must_change_password = Column(Boolean, default=False)
+    account_expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 # Crear las tablas
 Base.metadata.create_all(bind=engine)
