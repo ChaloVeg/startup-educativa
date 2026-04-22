@@ -7,6 +7,8 @@ from database import SessionLocal, UsuarioNiño, Progreso, TestEvaluacion, Catal
 from sqlalchemy import text
 from engine import MotorInteligenciaEmocional
 from ai_engine import NeuroForgeAI
+import random
+from datetime import datetime, timedelta
 
 
 # Configuración de la interfaz
@@ -31,21 +33,47 @@ try:
         st.session_state.logged_in = False
         st.session_state.rol = None
         st.session_state.username = None
+    if "require_pwd_change" not in st.session_state:
+        st.session_state.require_pwd_change = False
+        st.session_state.temp_user_id = None
 
-    if not st.session_state.logged_in:
+    if st.session_state.require_pwd_change:
+        st.title("⚠️ Cambio de Contraseña Obligatorio")
+        st.warning("Tu cuenta tiene una contraseña temporal. Debes cambiarla ahora para mantenerla activa.")
+        with st.form("change_pwd_form"):
+            new_pwd = st.text_input("Nueva Contraseña", type="password")
+            new_pwd2 = st.text_input("Confirmar Contraseña", type="password")
+            if st.form_submit_button("Actualizar y Entrar"):
+                if new_pwd == new_pwd2 and len(new_pwd) >= 4:
+                    user_to_update = db.query(UsuarioWeb).filter(UsuarioWeb.id == st.session_state.temp_user_id).first()
+                    user_to_update.password = new_pwd
+                    user_to_update.must_change_password = False
+                    user_to_update.account_expires_at = None
+                    db.commit()
+                    st.session_state.require_pwd_change = False
+                    st.session_state.logged_in = True
+                    st.rerun()
+                else:
+                    st.error("Las contraseñas no coinciden o son muy cortas (mín. 4 caracteres).")
+        st.stop()
+
+    elif not st.session_state.logged_in:
         st.title("🔐 Acceso a NeuroForge")
         st.markdown("Por favor, ingresa tus credenciales para continuar.")
         
         # Crear usuario admin por defecto si no existe en la BD
         admin_exists = db.query(UsuarioWeb).filter(UsuarioWeb.username == "admin").first()
         if not admin_exists:
-            default_admin = UsuarioWeb(username="admin", password="123", rol="Admin")
+            default_admin = UsuarioWeb(username="admin", password="123", rol="MasterAdmin")
             db.add(default_admin)
+            db.commit()
+        elif admin_exists.rol == "Admin":
+            admin_exists.rol = "MasterAdmin"
             db.commit()
 
         col1, col2 = st.columns([1, 2])
         with col1:
-            tab_login, tab_registro = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse"])
+            tab_login, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "🆘 Recuperar Contraseña"])
             
             with tab_login:
                 with st.form("login_form"):
@@ -56,28 +84,40 @@ try:
                     if submit_btn:
                         db_user = db.query(UsuarioWeb).filter(UsuarioWeb.username == user_input, UsuarioWeb.password == pwd_input).first()
                         if db_user:
-                            st.session_state.logged_in = True
-                            st.session_state.rol = db_user.rol
-                            st.session_state.username = db_user.username
-                            st.rerun()
+                            if db_user.must_change_password and db_user.account_expires_at and datetime.utcnow() > db_user.account_expires_at:
+                                st.error("Tu cuenta ha caducado por no cambiar la contraseña a tiempo. Contacta al administrador.")
+                            elif db_user.must_change_password:
+                                st.session_state.require_pwd_change = True
+                                st.session_state.temp_user_id = db_user.id
+                                st.session_state.rol = db_user.rol
+                                st.session_state.username = db_user.username
+                                st.rerun()
+                            else:
+                                st.session_state.logged_in = True
+                                st.session_state.rol = db_user.rol
+                                st.session_state.username = db_user.username
+                                st.rerun()
                         else:
                             st.error("Usuario o contraseña incorrectos.")
                             
-            with tab_registro:
-                with st.form("register_form"):
-                    new_user = st.text_input("Nuevo Usuario")
-                    new_pwd = st.text_input("Nueva Contraseña", type="password")
-                    new_rol = st.selectbox("Rol del Usuario", ["Profesor", "Admin"])
-                    reg_btn = st.form_submit_button("Crear Cuenta")
+            with tab_recuperar:
+                with st.form("recover_form"):
+                    rec_rut = st.text_input("Ingresa tu RUT")
+                    rec_email = st.text_input("Ingresa tu Correo")
+                    reg_btn = st.form_submit_button("Recuperar Contraseña")
                     
-                    if reg_btn and new_user and new_pwd:
-                        existe = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_user).first()
-                        if existe:
-                            st.error("Este nombre de usuario ya existe. Intenta con otro.")
-                        else:
-                            db.add(UsuarioWeb(username=new_user, password=new_pwd, rol=new_rol))
+                    if reg_btn and rec_rut and rec_email:
+                        user_rec = db.query(UsuarioWeb).filter(UsuarioWeb.username == rec_rut, UsuarioWeb.email == rec_email).first()
+                        if user_rec:
+                            temp_pwd = str(random.randint(10000, 99999))
+                            user_rec.password = temp_pwd
+                            user_rec.must_change_password = True
+                            user_rec.account_expires_at = datetime.utcnow() + timedelta(hours=24)
                             db.commit()
-                            st.success("¡Cuenta creada exitosamente! Ahora puedes iniciar sesión.")
+                            st.success(f"📧 Clave temporal enviada a {rec_email}")
+                            st.info(f"*(Simulación) Tu clave temporal es: {temp_pwd}*")
+                        else:
+                            st.error("RUT o correo no encontrados.")
 
             st.divider()
             if st.button("👦 Entrar como Alumno (Check-In)", use_container_width=True):
@@ -101,12 +141,13 @@ try:
 
     rol_usuario = st.session_state.rol
 
-    if rol_usuario == "Admin":
+    if rol_usuario in ["MasterAdmin", "Admin"]:
         st.sidebar.markdown("### Menú Administrativo")
-        vista_seleccionada = st.sidebar.radio(
-            "Navegación:", 
-            ["Visión Global PIE", "Directorio y Asignaciones", "Catálogo Pedagógico", "Test y Evaluaciones", "Gestión de Accesos"]
-        )
+        opciones_admin = ["Visión Global PIE", "Directorio y Asignaciones", "Catálogo Pedagógico", "Test y Evaluaciones"]
+        if rol_usuario == "MasterAdmin":
+            opciones_admin.append("Gestión de Usuarios y Accesos")
+            
+        vista_seleccionada = st.sidebar.radio("Navegación:", opciones_admin)
 
     elif rol_usuario == "Profesor":
         st.sidebar.markdown("### Menú Docente")
@@ -372,8 +413,11 @@ try:
                     if catalogo:
                         opciones_acciones = {a.id: f"[{a.categoria}] {a.nombre_accion}" for a in catalogo}
                         accion_seleccionada = st.selectbox("Seleccione Acción", options=list(opciones_acciones.keys()), format_func=lambda x: opciones_acciones[x])
+                        dias_duracion = st.number_input("Días de duración esperados", min_value=1, value=7)
+                        
                         if st.button("Asignar a Próxima Sesión"):
-                            nueva_asignacion = AccionAsignada(nino_id=nino_id_actual, accion_id=accion_seleccionada)
+                            fecha_venc = datetime.utcnow() + timedelta(days=dias_duracion)
+                            nueva_asignacion = AccionAsignada(nino_id=nino_id_actual, accion_id=accion_seleccionada, fecha_vencimiento=fecha_venc)
                             db.add(nueva_asignacion)
                             db.commit()
                             st.success("Acción asignada exitosamente para la próxima sesión.")
@@ -414,7 +458,7 @@ try:
         st.markdown("Gestiona las intervenciones pedagógicas programadas para tus alumnos.")
         alumnos_ids = [n.id for n in db.query(UsuarioNiño).filter(UsuarioNiño.profesor_asignado == profe_seleccionado).all()]
         if alumnos_ids:
-            asignadas = db.query(AccionAsignada).filter(AccionAsignada.nino_id.in_(alumnos_ids), AccionAsignada.estado == "Pendiente").all()
+            asignadas = db.query(AccionAsignada).filter(AccionAsignada.nino_id.in_(alumnos_ids), AccionAsignada.estado.in_(["Pendiente", "En Proceso"])).all()
             col1, col2 = st.columns(2)
             col1.metric("Alumnos a cargo", len(alumnos_ids))
             col2.metric("Tareas Pendientes totales", len(asignadas))
@@ -423,13 +467,26 @@ try:
                 for asig in asignadas:
                     nino = db.query(UsuarioNiño).filter(UsuarioNiño.id == asig.nino_id).first()
                     accion = db.query(CatalogoAcciones).filter(CatalogoAcciones.id == asig.accion_id).first()
+                    
+                    # Cálculo de caducidad y alertas
+                    dias_restantes = (asig.fecha_vencimiento - datetime.utcnow()).days if asig.fecha_vencimiento else 99
+                    alerta_msg = ""
+                    if 0 <= dias_restantes <= 2:
+                        alerta_msg = f"\n⚠️ **¡Alerta!** Vence en {dias_restantes} días. *(Correo enviado al profesor)*"
+                    
+                    estado_color = "🔴" if asig.estado == "Pendiente" else "🟡"
                     c1, c2, c3 = st.columns([2, 4, 1])
-                    c1.markdown(f"**👦 {nino.nombre}**\n*{nino.curso}*")
-                    c2.markdown(f"**{accion.nombre_accion}**\n{accion.descripcion}")
-                    if c3.button("Completar", key=f"btn_task_{asig.id}"):
-                        asig.estado = "Completada"
-                        db.commit()
-                        st.rerun()
+                    c1.markdown(f"**👦 {nino.nombre}**\n*{nino.curso}*\n{estado_color} {asig.estado}")
+                    c2.markdown(f"**{accion.nombre_accion}**\n{accion.descripcion}{alerta_msg}")
+                    with c3:
+                        if asig.estado == "Pendiente" and st.button("Iniciar", key=f"prog_{asig.id}"):
+                            asig.estado = "En Proceso"
+                            db.commit()
+                            st.rerun()
+                        if st.button("Completar", key=f"comp_{asig.id}"):
+                            asig.estado = "Completada"
+                            db.commit()
+                            st.rerun()
                     st.write("---")
             else:
                 st.success("¡Excelente! No tienes acciones pedagógicas pendientes para tus alumnos.")
