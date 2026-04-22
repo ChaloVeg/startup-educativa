@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
-from database import SessionLocal, UsuarioNiño, Progreso, TestEvaluacion, CatalogoAcciones, AccionAsignada, Sesion, ConfiguracionProfesor
+from database import SessionLocal, UsuarioNiño, Progreso, TestEvaluacion, CatalogoAcciones, AccionAsignada, Sesion, ConfiguracionProfesor, UsuarioWeb
 from sqlalchemy import text
 from engine import MotorInteligenciaEmocional
 from ai_engine import NeuroForgeAI
@@ -26,30 +26,74 @@ st.markdown(ocultar_menu_estilo, unsafe_allow_html=True)
 db = SessionLocal()
 
 try:
+    # --- SISTEMA DE LOGIN ---
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+        st.session_state.rol = None
+        st.session_state.username = None
+
+    if not st.session_state.logged_in:
+        st.title("🔐 Acceso a NeuroForge")
+        st.markdown("Por favor, ingresa tus credenciales para continuar.")
+        
+        # Crear usuario admin por defecto si no existe en la BD
+        admin_exists = db.query(UsuarioWeb).filter(UsuarioWeb.username == "admin").first()
+        if not admin_exists:
+            default_admin = UsuarioWeb(username="admin", password="123", rol="Admin")
+            db.add(default_admin)
+            db.commit()
+
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            with st.form("login_form"):
+                st.subheader("Iniciar Sesión")
+                user_input = st.text_input("Usuario")
+                pwd_input = st.text_input("Contraseña", type="password")
+                submit_btn = st.form_submit_button("Ingresar")
+
+                if submit_btn:
+                    db_user = db.query(UsuarioWeb).filter(UsuarioWeb.username == user_input, UsuarioWeb.password == pwd_input).first()
+                    if db_user:
+                        st.session_state.logged_in = True
+                        st.session_state.rol = db_user.rol
+                        st.session_state.username = db_user.username
+                        st.rerun()
+                    else:
+                        st.error("Usuario o contraseña incorrectos.")
+
+            st.divider()
+            if st.button("👦 Entrar como Alumno (Check-In)", use_container_width=True):
+                st.session_state.logged_in = True
+                st.session_state.rol = "Alumno"
+                st.session_state.username = "Alumno"
+                st.rerun()
+        st.stop()
+
     # ==========================================
     # CONTROL DE ACCESO Y NAVEGACIÓN LATERAL
     # ==========================================
-    st.sidebar.title("Control de Acceso")
-    rol_usuario = st.sidebar.selectbox(
-        "👤 Seleccione su Perfil:", 
-        ["Coordinación PIE (Admin)", "Profesor(a) Especialista", "Modo Alumno (Check-In)"]
-    )
+    st.sidebar.title("NeuroForge")
+    st.sidebar.markdown(f"👤 **Usuario:** {st.session_state.username}")
+    if st.sidebar.button("Cerrar Sesión"):
+        st.session_state.logged_in = False
+        st.session_state.rol = None
+        st.session_state.username = None
+        st.rerun()
     st.sidebar.divider()
 
-    if rol_usuario == "Coordinación PIE (Admin)":
+    rol_usuario = st.session_state.rol
+
+    if rol_usuario == "Admin":
         st.sidebar.markdown("### Menú Administrativo")
         vista_seleccionada = st.sidebar.radio(
             "Navegación:", 
             ["Visión Global PIE", "Directorio y Asignaciones", "Catálogo Pedagógico", "Test y Evaluaciones", "Gestión de Accesos"]
         )
 
-    elif rol_usuario == "Profesor(a) Especialista":
+    elif rol_usuario == "Profesor":
         st.sidebar.markdown("### Menú Docente")
-        profesores_db = [r[0] for r in db.query(UsuarioNiño.profesor_asignado).distinct().all() if r[0]]
-        if not profesores_db: 
-            profesores_db = ["Sin profesores asignados"]
-        
-        profe_seleccionado = st.sidebar.selectbox("👩‍🏫 Seleccione su cuenta:", profesores_db)
+        # El profesor ya no puede elegir quién es, el sistema asume su identidad de login
+        profe_seleccionado = st.session_state.username
         
         config_profe = db.query(ConfiguracionProfesor).filter(ConfiguracionProfesor.nombre_profesor == profe_seleccionado).first()
         opciones_docente = []
@@ -219,10 +263,29 @@ try:
                 st.info("No hay evaluaciones registradas en el sistema todavía.")
 
     elif vista_seleccionada == "Gestión de Accesos":
-        st.title("🔐 Gestión de Accesos para Profesores")
-        st.markdown("Controla qué secciones del sistema puede ver cada profesor especialista.")
+        st.title("🔐 Gestión de Accesos y Credenciales")
+        st.markdown("Crea cuentas de acceso para los profesores y controla qué secciones pueden ver.")
         
-        profesores_unicos = [r[0] for r in db.query(UsuarioNiño.profesor_asignado).distinct().all() if r[0] and r[0] != "Sin asignar"]
+        with st.form("new_user_form", clear_on_submit=True):
+            st.subheader("Crear Cuenta de Profesor")
+            st.caption("El nombre de usuario debe coincidir exactamente con el 'Profesor Asignado' en el Directorio (Ej: Profe Ana).")
+            new_user = st.text_input("Nombre de Usuario")
+            new_pwd = st.text_input("Contraseña", type="password")
+            submit_user = st.form_submit_button("Crear Cuenta")
+            
+            if submit_user and new_user and new_pwd:
+                existe = db.query(UsuarioWeb).filter(UsuarioWeb.username == new_user).first()
+                if existe:
+                    st.error("Ya existe una cuenta con ese nombre de usuario.")
+                else:
+                    db.add(UsuarioWeb(username=new_user, password=new_pwd, rol="Profesor"))
+                    db.commit()
+                    st.success(f"Cuenta para '{new_user}' creada exitosamente.")
+                    
+        st.divider()
+        st.subheader("Permisos de Vistas por Profesor")
+        
+        profesores_unicos = [r[0] for r in db.query(UsuarioWeb.username).filter(UsuarioWeb.rol == "Profesor").all()]
         
         if profesores_unicos:
             for profe in profesores_unicos:

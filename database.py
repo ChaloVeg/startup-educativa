@@ -90,5 +90,12 @@ class ConfiguracionProfesor(Base):
     ver_alumnos = Column(Boolean, default=True) # Por defecto, pueden ver sus alumnos
     ver_tareas = Column(Boolean, default=True)  # Por defecto, pueden ver sus tareas
 
+class UsuarioWeb(Base):
+    __tablename__ = "usuarios_web"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    password = Column(String)
+    rol = Column(String) # "Admin" o "Profesor"
+
 # Crear las tablas
 Base.metadata.create_all(bind=engine)
