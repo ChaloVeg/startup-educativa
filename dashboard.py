@@ -71,43 +71,7 @@ st.markdown(ocultar_menu_estilo, unsafe_allow_html=True)
 
 # Iniciar conexión segura con la BD
 
-@st.cache_resource
-def inicializar_base_datos():
-    """Verifica y repara la base de datos UNA SOLA VEZ al iniciar la app para evitar latencia."""
-    Base.metadata.create_all(bind=engine)
-    db_temp = SessionLocal()
-    try:
-        try:
-            db_temp.query(UsuarioNiño.rut).first()
-        except SQLAlchemyError:
-            db_temp.rollback()
-            UsuarioNiño.__table__.drop(engine, checkfirst=True)
-            UsuarioNiño.__table__.create(engine)
-            
-        try:
-            db_temp.query(UsuarioWeb).first()
-        except SQLAlchemyError:
-            db_temp.rollback()
-            UsuarioWeb.__table__.drop(engine, checkfirst=True)
-            UsuarioWeb.__table__.create(engine)
-            
-        try:
-            db_temp.query(AccionAsignada).first()
-        except SQLAlchemyError:
-            db_temp.rollback()
-            AccionAsignada.__table__.drop(engine, checkfirst=True)
-            AccionAsignada.__table__.create(engine)
-            
-        try:
-            db_temp.query(ConfiguracionProfesor).first()
-        except SQLAlchemyError:
-            db_temp.rollback()
-            ConfiguracionProfesor.__table__.drop(engine, checkfirst=True)
-            ConfiguracionProfesor.__table__.create(engine)
-    finally:
-        db_temp.close()
-
-inicializar_base_datos()
+Base.metadata.create_all(bind=engine)
 
 db = SessionLocal()
 
