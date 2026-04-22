@@ -75,18 +75,6 @@ Base.metadata.create_all(bind=engine)
 
 db = SessionLocal()
 
-# --- AUTO-REPARACIÓN SEGURA Y DEFINITIVA ---
-try:
-    # Verificamos si las tablas tienen todas sus columnas nuevas (como el RUT)
-    db.query(UsuarioNiño).first()
-    db.query(UsuarioWeb).first()
-except SQLAlchemyError:
-    db.rollback()
-    # Si falta alguna columna, borramos las tablas en el orden correcto (sin romper llaves foráneas) y las recreamos
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
-    st.rerun()
-
 try:
     # --- SISTEMA DE LOGIN ---
     if "logged_in" not in st.session_state:
