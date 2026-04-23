@@ -292,9 +292,22 @@ try:
         """, unsafe_allow_html=True)
         st.divider()
 
-        total_alumnos = db.query(Alumno).count()
-        total_tareas = db.query(AccionAsignada).filter(AccionAsignada.estado == "Pendiente").count()
-        
+        try:
+            # Verificación de integridad del esquema en la nube
+            total_alumnos = db.query(Alumno).count()
+            total_tareas = db.query(AccionAsignada).filter(AccionAsignada.estado == "Pendiente").count()
+            _ = db.query(FichaAlumno).first() # Fuerza la validación de nuevas columnas (Alergias)
+        except SQLAlchemyError:
+            db.rollback() # Limpia la transacción fallida
+            st.error("⚠️ Desfase Estructural Detectado en Neon.tech")
+            st.warning("El código en la nube está actualizado al 100%, pero tu base de datos en Neon aún conserva las tablas antiguas. Para que el sistema funcione, debemos sincronizarlas.")
+            st.divider()
+            if st.button("🛠️ Limpiar y Reconstruir Base de Datos en la Nube", type="primary", use_container_width=True):
+                Base.metadata.drop_all(bind=engine)
+                Base.metadata.create_all(bind=engine)
+                st.success("✅ Base de datos sincronizada con éxito. Por favor recarga la página web (Presiona F5).")
+            st.stop() # Detiene la ejecución para no mostrar el resto de gráficas rotas
+
         if total_alumnos == 0:
             from seed import seed_data
             with st.spinner("Inicializando métricas y cargando 10 expedientes de prueba. Por favor espera un segundo..."):
