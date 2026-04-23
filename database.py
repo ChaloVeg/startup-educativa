@@ -15,8 +15,8 @@ else:
     if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
         SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
     
-    # PostgreSQL no necesita el parámetro "check_same_thread"
-    engine = create_engine(SQLALCHEMY_DATABASE_URL)
+    # Para la nube (Neon.tech), agregamos pre_ping para evitar caídas por inactividad
+    engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -175,5 +175,5 @@ class UsuarioWeb(Base):
     account_expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
-# Crear las tablas
-Base.metadata.create_all(bind=engine)
+# NOTA: No ejecutamos Base.metadata.create_all() aquí.
+# Se ejecutará de forma segura directamente desde dashboard.py para evitar ImportErrors.
