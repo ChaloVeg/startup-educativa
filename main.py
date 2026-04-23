@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from database import SessionLocal, UsuarioNiño, Progreso, Sesion, Interaccion
+from database import SessionLocal, Alumno, Progreso, Sesion, Interaccion
 import schemas
 from engine import MotorAdaptativo, AdaptiveEngine, MotorInteligenciaEmocional
 
@@ -24,7 +24,7 @@ def registrar_progreso(progreso: schemas.ProgresoCreate, db: Session = Depends(g
     """
     # 1. Guardar telemetría
     db_progreso = Progreso(
-        nino_id=progreso.nino_id,
+        alumno_id=progreso.alumno_id,
         nivel_alcanzado=progreso.nivel_alcanzado,
         tiempo_reaccion=progreso.tiempo_reaccion,
         errores_cometidos=progreso.errores_cometidos
@@ -35,7 +35,7 @@ def registrar_progreso(progreso: schemas.ProgresoCreate, db: Session = Depends(g
     # 2. Consultar al Motor Adaptativo
     evaluacion = motor_ia.evaluar(
         db=db,
-        nino_id=progreso.nino_id,
+        alumno_id=progreso.alumno_id,
         nivel_actual=progreso.nivel_alcanzado,
         errores=progreso.errores_cometidos,
         tiempo_reaccion=progreso.tiempo_reaccion
@@ -47,7 +47,7 @@ def check_in_emocional(data: schemas.CheckInCreate, db: Session = Depends(get_db
     """Pilar de Emoción: Registra el estado inicial del niño antes de la sesión."""
     try:
         nueva_sesion = Sesion(
-            nino_id=data.nino_id,
+            alumno_id=data.alumno_id,
             estado_emocional_inicio=data.estado_emocional_inicio
         )
         db.add(nueva_sesion)
@@ -106,11 +106,11 @@ def finalizar_sesion(data: schemas.SessionEndCreate, db: Session = Depends(get_d
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error cerrando la sesión: {str(e)}")
 
-@app.get("/teacher/analytics/{nino_id}")
-def obtener_analiticas_profesor(nino_id: int, db: Session = Depends(get_db)):
+@app.get("/teacher/analytics/{alumno_id}")
+def obtener_analiticas_profesor(alumno_id: int, db: Session = Depends(get_db)):
     """Pilar de Autonomía: Devuelve un resumen gerencial comparando avance actual vs histórico."""
     try:
-        sesiones = db.query(Sesion).filter(Sesion.nino_id == nino_id).all()
+        sesiones = db.query(Sesion).filter(Sesion.alumno_id == alumno_id).all()
         if not sesiones:
             raise HTTPException(status_code=404, detail="No hay datos de sesiones para este alumno.")
         
@@ -118,7 +118,7 @@ def obtener_analiticas_profesor(nino_id: int, db: Session = Depends(get_db)):
         autonomia_historica = sum(s.indice_autonomia for s in sesiones) / len(sesiones)
         
         return {
-            "nino_id": nino_id,
+            "alumno_id": alumno_id,
             "total_sesiones": len(sesiones),
             "indice_autonomia_historico": round(autonomia_historica, 2),
             "estado_emocional_frecuente": sesiones[-1].estado_emocional_inicio if sesiones else "N/A",

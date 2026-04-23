@@ -9,14 +9,14 @@ class MotorAdaptativo:
     
     UMBRAL_ECEP_BAJO = 40.0 # Puntuación por debajo de la cual se necesita apoyo extra
 
-    def evaluar(self, db: Session, nino_id: int, nivel_actual: int, errores: int, tiempo_reaccion: float) -> dict:
+    def evaluar(self, db: Session, alumno_id: int, nivel_actual: int, errores: int, tiempo_reaccion: float) -> dict:
         siguiente_nivel = nivel_actual
         estimulo = "visual"
         mensaje = "Ritmo estable. Manteniendo parámetros."
 
         # 1. Verificar si el niño tiene un test ECEP con baja puntuación
         evaluacion_ecep = db.query(TestEvaluacion).filter(
-            TestEvaluacion.nino_id == nino_id,
+            TestEvaluacion.alumno_id == alumno_id,
             TestEvaluacion.tipo_test.like("%ECEP%")
         ).order_by(TestEvaluacion.fecha_evaluacion.desc()).first()
 

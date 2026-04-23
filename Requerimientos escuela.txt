@@ -1,0 +1,71 @@
+Ficha de alumnos
+	Rut
+	Nombre Social
+	Fecha evaluaciones
+
+Alumno
+	Rut
+	nombres
+	apellidos
+	curso
+
+Medico
+	Rut Medico
+	Nombre medico evaluador
+	Especialidad Medico
+	Diagnostico solo transitorios no tda
+
+Profesor
+	Rut
+	Nombres
+	Apellidos
+	Registro
+	Diagnostico todos
+
+Cursos
+	Nivel
+
+Especialista
+	Rut
+	Nombres
+	Apellidos
+	Registro
+	Diagnostico no todos
+
+Necesidad Educativa
+	Diagnostico
+	tipo
+	
+Diagnostico
+	permanente
+	transitorio
+
+Tipo Permanente
+	tea
+	di leve
+	di moderado
+	síndrome de down
+	sordoceguera
+	ceguera
+	hipoacusia moderada
+	hipoacusia leve
+	disfasia severa
+	discapacidad multiple
+	discapacidad motora
+
+Tipo Transitorio
+	tel (expresivo, comprensivo, mixto)
+	tda
+	tdah
+	dea	
+	fil
+
+tipo Especialista
+	Psicólogo(a)
+	Fonoaudiólogo(a)
+	Terapeuta ocupacional	
+
+Tipo Medico
+	Medico Familia
+	Neurologo
+	Psiquitra

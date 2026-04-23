@@ -9,7 +9,7 @@ class ProgresoBase(BaseModel):
     errores_cometidos: int
 
 class ProgresoCreate(ProgresoBase):
-    nino_id: int
+    alumno_id: int
 
 class AdaptacionResponse(BaseModel):
     """Contrato de respuesta del Motor Adaptativo"""
@@ -18,7 +18,7 @@ class AdaptacionResponse(BaseModel):
     mensaje: str
 
 class CheckInCreate(BaseModel):
-    nino_id: int
+    alumno_id: int
     estado_emocional_inicio: str
 
 class CheckInResponse(BaseModel):

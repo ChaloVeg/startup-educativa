@@ -1,6 +1,11 @@
-from database import SessionLocal, UsuarioNiño, Progreso, CatalogoAcciones, UsuarioWeb
+from database import (
+    SessionLocal, Alumno, Curso, Progreso, CatalogoAcciones, UsuarioWeb,
+    Medico, Profesor, Especialista, Diagnostico, NecesidadEducativa, FichaAlumno,
+    CategoriaDiagnostico, EspecialidadMedico, TipoEspecialista,
+    TestEvaluacion, AccionAsignada
+)
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 def seed_data():
     """
@@ -28,16 +33,84 @@ def seed_data():
             db.add(profe_carlos)
         db.commit()
 
+        # --- NUEVOS ACTORES DEL SISTEMA PIE ---
+        print("Creando registro de Profesores...")
+        if not db.query(Profesor).first():
+            db.add_all([
+                Profesor(rut=profe_ana_rut, nombres="Ana", apellidos="Gómez", registro="12345-MINEDUC"),
+                Profesor(rut=profe_carlos_rut, nombres="Carlos", apellidos="Soto", registro="67890-MINEDUC")
+            ])
+            db.commit()
+
+        print("Creando registro de Médicos...")
+        if not db.query(Medico).first():
+            db.add_all([
+                Medico(rut="88888888-8", nombre="Dr. Roberto Neira", especialidad=EspecialidadMedico.NEUROLOGO),
+                Medico(rut="99999999-9", nombre="Dra. Camila Torres", especialidad=EspecialidadMedico.PSIQUIATRA)
+            ])
+            db.commit()
+
+        print("Creando registro de Especialistas...")
+        if not db.query(Especialista).first():
+            db.add_all([
+                Especialista(rut="10101010-1", nombres="Felipe", apellidos="Paredes", registro="REG-PSI-01", tipo=TipoEspecialista.PSICOLOGO),
+                Especialista(rut="12121212-2", nombres="Marta", apellidos="Lagos", registro="REG-FON-02", tipo=TipoEspecialista.FONOAUDIOLOGO)
+            ])
+            db.commit()
+
+        print("Creando catálogo de Diagnósticos base...")
+        if not db.query(Diagnostico).first():
+            db.add_all([
+                Diagnostico(categoria=CategoriaDiagnostico.PERMANENTE, tipo="tea"),
+                Diagnostico(categoria=CategoriaDiagnostico.TRANSITORIO, tipo="tdah"),
+                Diagnostico(categoria=CategoriaDiagnostico.TRANSITORIO, tipo="tel expresivo")
+            ])
+            db.commit()
+
         # 2. Verificar si ya hay alumnos para no duplicar
-        if not db.query(UsuarioNiño).first():
+        if not db.query(Alumno).first():
+            print("Creando cursos base...")
+            curso_2 = Curso(nivel="2do Básico")
+            curso_3 = Curso(nivel="3ro Básico")
+            curso_4 = Curso(nivel="4to Básico")
+            db.add_all([curso_2, curso_3, curso_4])
+            db.commit()
             # Crear niños de prueba
-            print("Creando usuarios de prueba...")
-            ninos_data = [
-                UsuarioNiño(rut="11111111-1", nombre="Alex García", perfil_diagnostico="TDAH", curso="3ro Básico", profesor_asignado=profe_ana_rut),
-                UsuarioNiño(rut="22222222-2", nombre="Sofía López", perfil_diagnostico="Dislexia", curso="4to Básico", profesor_asignado=profe_carlos_rut),
-                UsuarioNiño(rut="33333333-3", nombre="Mateo Ruiz", perfil_diagnostico="TEA", curso="2do Básico", profesor_asignado=profe_ana_rut)
-            ]
+            print("Creando usuarios de prueba (10 expedientes)...")
+            nombres = ["Alex", "Sofía", "Mateo", "Valentina", "Lucas", "Martina", "Diego", "Camila", "Joaquín", "Valeria"]
+            apellidos = ["García", "López", "Ruiz", "Soto", "Pérez", "Gómez", "Silva", "Díaz", "Rojas", "Torres"]
+            
+            ninos_data = []
+            for i in range(10):
+                ninos_data.append(Alumno(rut=f"{10000000+i}-{i%9}", nombres=nombres[i], apellidos=apellidos[i], curso_id=random.choice([curso_2.id, curso_3.id, curso_4.id])))
+            
             db.add_all(ninos_data)
+            db.commit()
+
+            # Asignar Fichas y Necesidades Educativas
+            print("Creando Fichas de Alumnos y Asignando Diagnósticos...")
+            diagnosticos_list = db.query(Diagnostico).all()
+            
+            profesores = db.query(Profesor).all()
+            medicos = db.query(Medico).all()
+            especialistas = db.query(Especialista).all()
+            
+            for i, nino in enumerate(ninos_data):
+                ficha = FichaAlumno(
+                    alumno_id=nino.id, 
+                    rut=nino.rut, 
+                    nombre_social=nombres[i][:4], 
+                    fecha_evaluaciones=datetime.now(timezone.utc) - timedelta(days=random.randint(10, 90)), 
+                    profesor_id=random.choice(profesores).id, 
+                    medico_id=random.choice(medicos).id, 
+                    especialista_id=random.choice(especialistas).id
+                )
+                ne = NecesidadEducativa(
+                    alumno_id=nino.id, 
+                    diagnostico_id=random.choice(diagnosticos_list).id
+                )
+                db.add(ficha)
+                db.add(ne)
             db.commit()
 
             # 3. Generar datos de progreso para cada niño
@@ -53,7 +126,7 @@ def seed_data():
                     if errores < 2 and tiempo < 3.0: nivel_actual += 1
                     elif errores > 2: nivel_actual = max(1, nivel_actual - 1)
 
-                    progreso = Progreso(nino_id=nino.id, nivel_alcanzado=nivel_actual, tiempo_reaccion=round(tiempo, 2), errores_cometidos=errores, fecha_sesion=datetime.utcnow() - timedelta(days=20-i))
+                    progreso = Progreso(alumno_id=nino.id, nivel_alcanzado=nivel_actual, tiempo_reaccion=round(tiempo, 2), errores_cometidos=errores, fecha_sesion=datetime.now(timezone.utc) - timedelta(days=20-i))
                     db.add(progreso)
             db.commit()
             print("¡Datos de prueba insertados correctamente!")
@@ -74,6 +147,37 @@ def seed_data():
             db.add_all(acciones_default)
             db.commit()
             print("¡Catálogo de acciones creado!")
+            
+        # 5. Generar Evaluaciones y Tareas Pendientes
+        print("Generando Evaluaciones y Tareas de prueba...")
+        alumnos_db = db.query(Alumno).all()
+        acciones_db = db.query(CatalogoAcciones).all()
+        
+        if alumnos_db and acciones_db:
+            if not db.query(TestEvaluacion).first():
+                tipos_test = ["WISC-V (Inteligencia)", "Test de Atención de Conners", "ECEP (Comportamiento)", "PROLEC-R (Lectura)"]
+                for nino in alumnos_db:
+                    # 1 a 2 evaluaciones aleatorias por cada alumno
+                    for _ in range(random.randint(1, 2)):
+                        db.add(TestEvaluacion(
+                            alumno_id=nino.id, 
+                            tipo_test=random.choice(tipos_test), 
+                            puntuacion=round(random.uniform(35.0, 115.0), 1), 
+                            observaciones="Evaluación periódica de seguimiento PIE."
+                        ))
+            
+            if not db.query(AccionAsignada).first():
+                estados = ["Pendiente", "En Proceso", "Completada"]
+                for nino in alumnos_db:
+                    # 2 a 3 tareas asignadas por alumno
+                    for _ in range(random.randint(2, 3)):
+                        db.add(AccionAsignada(
+                            alumno_id=nino.id, 
+                            accion_id=random.choice(acciones_db).id, 
+                            estado=random.choice(estados), 
+                            fecha_vencimiento=datetime.now(timezone.utc) + timedelta(days=random.randint(-5, 15))
+                        ))
+            db.commit()
     finally:
         db.close()
 
